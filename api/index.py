@@ -20,7 +20,16 @@ from jinja2 import DictLoader
 # ===================== CONFIGURACOES =====================
 SENHA_PROFESSOR = os.environ.get("SENHA_PROFESSOR", "copa2026")
 SECRET_KEY = os.environ.get("SECRET_KEY", "troque-este-texto-por-algo-aleatorio-grande")
-POSICOES = ["Goleiro", "Zagueiro", "Lateral", "Volante", "Meio de campo", "Atacante"]
+
+# Posicoes de jogadores (livres para o aluno) e de comissao (exigem senha)
+POSICOES_JOGADORES = ["Goleiro", "Zagueiro", "Lateral", "Volante", "Meio de campo", "Atacante"]
+POSICOES_COMISSAO = ["Técnico", "Auxiliar", "Árbitra"]
+POSICOES = POSICOES_JOGADORES + POSICOES_COMISSAO
+
+# Turmas disponiveis. "Todas as turmas" e so para a comissao (ex.: a diretora/arbitra).
+TURMAS = ["9º A", "9º B", "9º C", "1º D", "1º E", "2º D", "2º E", "2º F", "3º B", "3º C"]
+TURMA_COMISSAO = "Todas as turmas"
+
 MAX_IMAGEM_BYTES = 3 * 1024 * 1024
 # =========================================================
 
@@ -178,32 +187,38 @@ TEMPLATES = {
 
 {% block estilo %}
   .grade{display:grid;grid-template-columns:1.05fr .95fr;gap:42px;align-items:start}
-  @media(max-width:860px){.grade{grid-template-columns:1fr;gap:32px}}
+  @media(max-width:860px){.grade{grid-template-columns:1fr;gap:28px}}
 
-  .intro h2{font-family:'Anton',sans-serif;font-size:2.4rem;line-height:1.02;text-transform:uppercase;letter-spacing:.5px}
+  .intro h2{font-family:'Anton',sans-serif;font-size:clamp(1.7rem,5vw,2.4rem);line-height:1.02;text-transform:uppercase;letter-spacing:.5px;text-shadow:0 2px 6px rgba(0,0,0,.5)}
   .intro h2 b{color:var(--ouro)}
-  .intro p{color:var(--cinza);margin-top:10px;max-width:46ch;line-height:1.5}
+  .intro p{color:var(--cinza);margin-top:10px;max-width:46ch;line-height:1.5;text-shadow:0 1px 3px rgba(0,0,0,.5)}
 
   .campo{margin-top:22px}
-  .campo label{display:block;font-weight:700;font-size:.82rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--ouro);margin-bottom:9px}
-  .campo input[type=text], .campo select{
-    width:100%;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.16);
-    background:rgba(255,255,255,.05);color:#fff;font-family:'Sora',sans-serif;font-size:1rem;outline:none;transition:.15s}
-  .campo input[type=text]:focus, .campo select:focus{border-color:var(--ouro);background:rgba(255,255,255,.09)}
+  .campo > label{display:block;font-weight:700;font-size:.82rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--ouro);margin-bottom:9px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .campo input[type=text], .campo input[type=password], .campo select{
+    width:100%;padding:14px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.2);
+    background:rgba(0,0,0,.35);color:#fff;font-family:'Sora',sans-serif;font-size:1rem;outline:none;transition:.15s}
+  .campo input:focus, .campo select:focus{border-color:var(--ouro);background:rgba(0,0,0,.5)}
   .campo select option{background:#0a2a1a;color:#fff}
 
+  .grupo-pos{font-weight:700;font-size:.74rem;letter-spacing:1.5px;text-transform:uppercase;color:#cfe3d6;margin:14px 0 8px;opacity:.85}
   .posicoes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   @media(max-width:520px){.posicoes{grid-template-columns:repeat(2,1fr)}}
   .pos-btn{position:relative;cursor:pointer}
   .pos-btn input{position:absolute;opacity:0;inset:0;cursor:pointer}
   .pos-btn span{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border-radius:12px;
-    border:1.5px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);font-weight:600;font-size:.86rem;transition:.15s}
+    border:1.5px solid rgba(255,255,255,.16);background:rgba(0,0,0,.3);font-weight:600;font-size:.86rem;transition:.15s;text-align:center}
   .pos-btn .ic{font-size:1.4rem}
-  .pos-btn input:checked + span{border-color:var(--cor);background:color-mix(in srgb, var(--cor) 25%, transparent);box-shadow:0 0 0 1px var(--cor) inset}
+  .pos-btn input:checked + span{border-color:var(--cor);background:color-mix(in srgb, var(--cor) 32%, rgba(0,0,0,.4));box-shadow:0 0 0 1px var(--cor) inset}
 
-  .foto-drop{margin-top:9px;border:2px dashed rgba(244,197,66,.4);border-radius:14px;padding:26px;text-align:center;
-    cursor:pointer;transition:.15s;background:rgba(255,255,255,.03)}
-  .foto-drop:hover{border-color:var(--ouro);background:rgba(244,197,66,.06)}
+  #campoSenha{display:none}
+  #campoSenha.show{display:block}
+  .aviso-staff{font-size:.82rem;color:#ffd866;background:rgba(244,197,66,.1);border:1px solid rgba(244,197,66,.35);
+    border-radius:10px;padding:10px 12px;margin-top:8px;line-height:1.4}
+
+  .foto-drop{margin-top:9px;border:2px dashed rgba(244,197,66,.45);border-radius:14px;padding:26px;text-align:center;
+    cursor:pointer;transition:.15s;background:rgba(0,0,0,.25)}
+  .foto-drop:hover{border-color:var(--ouro);background:rgba(244,197,66,.08)}
   .foto-drop .ic{font-size:2rem}
   .foto-drop p{color:var(--cinza);margin-top:6px;font-size:.9rem}
   .foto-drop b{color:var(--ouro)}
@@ -211,30 +226,25 @@ TEMPLATES = {
 
   .enviar{margin-top:26px;width:100%;justify-content:center;font-size:1.05rem;padding:16px}
 
-  /* ===== FIGURINHA ===== */
+  /* ===== FIGURINHA (prévia) ===== */
   .preview-wrap{position:sticky;top:24px;display:flex;flex-direction:column;align-items:center;gap:14px}
-  .dica{color:var(--cinza);font-size:.82rem;letter-spacing:1px;text-transform:uppercase}
-  .figurinha{
-    --cor:#888;
-    width:300px;max-width:82vw;aspect-ratio:63/88;border-radius:18px;position:relative;overflow:hidden;
-    background:linear-gradient(160deg,#10261b,#081912);
-    padding:7px;
-    box-shadow:0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06) inset;
-  }
-  /* borda metálica */
+  @media(max-width:860px){.preview-wrap{position:static;order:-1}}
+  .dica{color:var(--cinza);font-size:.82rem;letter-spacing:1px;text-transform:uppercase;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+  .figurinha{--cor:#888;width:300px;max-width:82vw;aspect-ratio:63/88;border-radius:18px;position:relative;overflow:hidden;
+    background:linear-gradient(160deg,#10261b,#081912);padding:7px;
+    box-shadow:0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06) inset}
   .figurinha::before{content:"";position:absolute;inset:0;border-radius:18px;padding:3px;
     background:linear-gradient(135deg, var(--cor), #fff6, var(--cor));
     -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
   .fig-inner{height:100%;border-radius:13px;overflow:hidden;display:flex;flex-direction:column;background:#06140d;position:relative}
-  .fig-faixa{background:linear-gradient(180deg, var(--cor), color-mix(in srgb,var(--cor) 60%, #000));
+  .fig-faixa{flex-shrink:0;background:linear-gradient(180deg, var(--cor), color-mix(in srgb,var(--cor) 60%, #000));
     color:#fff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;
     font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:.84rem;text-shadow:0 1px 2px rgba(0,0,0,.4)}
   .fig-faixa .ic{font-size:1.1rem}
-  .fig-faixa{flex-shrink:0}
-  .fig-foto{flex:1 1 auto;min-height:0;overflow:hidden;position:relative;background:
-      repeating-linear-gradient(45deg,#0c1f15 0 12px,#0a1b12 12px 24px);display:flex;align-items:center;justify-content:center}
-  .fig-foto img{width:100%;height:100%;object-fit:cover;display:none}
+  .fig-foto{flex:1 1 auto;min-height:0;overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(45deg,#0c1f15 0 12px,#0a1b12 12px 24px)}
+  .fig-foto img{width:100%;height:100%;object-fit:contain;display:none}
   .fig-foto .placeholder{color:#3f5a4b;font-size:2.6rem}
   .fig-rodape{flex-shrink:0;padding:11px 14px 13px;background:linear-gradient(0deg,#05110b,transparent);position:relative}
   .fig-rodape .nome{font-family:'Anton',sans-serif;font-size:1.35rem;text-transform:uppercase;line-height:1;letter-spacing:.5px;
@@ -243,7 +253,6 @@ TEMPLATES = {
   .fig-rodape .turma{color:var(--cinza);font-size:.78rem;font-weight:600}
   .fig-selo{font-family:'Anton',sans-serif;font-size:.72rem;letter-spacing:1px;color:var(--ouro);
     border:1px solid var(--ouro);padding:2px 8px;border-radius:6px}
-  /* brilho holográfico */
   .fig-inner::after{content:"";position:absolute;inset:0;pointer-events:none;
     background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.14) 48%,transparent 60%);
     background-size:250% 250%;animation:brilho 5s linear infinite}
@@ -251,6 +260,8 @@ TEMPLATES = {
 {% endblock %}
 
 {% block conteudo %}
+{% set cores = {'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4','Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626','Técnico':'#475569','Auxiliar':'#0d9488','Árbitra':'#d4a017'} %}
+{% set icones = {'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥','Técnico':'📋','Auxiliar':'📣','Árbitra':'🟨'} %}
 <form action="{{ url_for('salvar') }}" method="POST" id="form" class="grade">
   <div>
     <div class="intro">
@@ -259,46 +270,58 @@ TEMPLATES = {
     </div>
 
     <div class="campo">
-      <label for="nome">Seu nome</label>
-      <input type="text" id="nome" name="nome" maxlength="40" placeholder="Ex.: Maria Silva" required>
+      <label for="nome">Nome</label>
+      <input type="text" id="nome" name="nome" maxlength="50" placeholder="Ex.: Maria Silva" required>
     </div>
 
     <div class="campo">
-      <label for="turma">Sua turma</label>
+      <label for="turma">Turma</label>
       <select id="turma" name="turma" required>
         <option value="" disabled selected>Selecione...</option>
-        <option value="8º ano">8º ano</option>
-        <option value="9º ano">9º ano</option>
-        <option value="1º ano EM">1º ano (Ensino Médio)</option>
-        <option value="2º ano EM">2º ano (Ensino Médio)</option>
-        <option value="3º ano EM">3º ano (Ensino Médio)</option>
+        {% for t in turmas %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+        <option value="{{ turma_comissao }}">{{ turma_comissao }} (comissão)</option>
       </select>
     </div>
 
     <div class="campo">
-      <label>Sua posição</label>
+      <label>Posição</label>
+      <div class="grupo-pos">⚽ Jogadores</div>
       <div class="posicoes">
-        {% set icones = {'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥'} %}
-        {% for p in posicoes %}
-        <label class="pos-btn" style="--cor:var(--pos-{{ p|lower|replace(' ','-') }})">
-          <input type="radio" name="posicao" value="{{ p }}" required>
+        {% for p in jogadores %}
+        <label class="pos-btn" style="--cor:{{ cores[p] }}">
+          <input type="radio" name="posicao" value="{{ p }}" data-staff="0" required>
+          <span><span class="ic">{{ icones[p] }}</span>{{ p }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <div class="grupo-pos">🔒 Comissão técnica (precisa da senha do professor)</div>
+      <div class="posicoes">
+        {% for p in comissao %}
+        <label class="pos-btn" style="--cor:{{ cores[p] }}">
+          <input type="radio" name="posicao" value="{{ p }}" data-staff="1">
           <span><span class="ic">{{ icones[p] }}</span>{{ p }}</span>
         </label>
         {% endfor %}
       </div>
     </div>
 
+    <div class="campo" id="campoSenha">
+      <label for="senha_staff">Senha do professor</label>
+      <input type="password" id="senha_staff" name="senha_staff" placeholder="Digite a senha para cadastrar a comissão">
+      <div class="aviso-staff">As posições de Técnico, Auxiliar e Árbitra são protegidas por senha. Para a Árbitra (diretora), você pode escolher a turma <b>"{{ turma_comissao }}"</b> para que ela apareça em todos os times.</div>
+    </div>
+
     <div class="campo">
-      <label>Sua foto</label>
+      <label>Foto</label>
       <label for="arquivo" class="foto-drop" id="drop">
         <div class="ic">📷</div>
         <p><b>Toque para escolher</b> ou tirar uma foto</p>
       </label>
-      <input type="file" id="arquivo" accept="image/*" capture="user">
+      <input type="file" id="arquivo" accept="image/*">
     </div>
 
     <input type="hidden" name="imagem" id="imagem">
-    <button type="submit" class="btn btn-ouro enviar" id="btnEnviar">⭐ Salvar minha figurinha</button>
+    <button type="submit" class="btn btn-ouro enviar" id="btnEnviar">⭐ Salvar figurinha</button>
   </div>
 
   <!-- PRÉVIA -->
@@ -326,66 +349,59 @@ TEMPLATES = {
 
 {% block scripts %}
 <script>
-  const cores = {
-    'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4',
-    'Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626'
-  };
-  const icones = {
-    'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃',
-    'Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥'
-  };
+  var cores={'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4','Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626','Técnico':'#475569','Auxiliar':'#0d9488','Árbitra':'#d4a017'};
+  var icones={'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥','Técnico':'📋','Auxiliar':'📣','Árbitra':'🟨'};
 
-  const card = document.getElementById('card');
-  const nome = document.getElementById('nome');
-  const turma = document.getElementById('turma');
-  const arquivo = document.getElementById('arquivo');
-  const imagemInput = document.getElementById('imagem');
+  var card=document.getElementById('card');
+  var nome=document.getElementById('nome');
+  var turma=document.getElementById('turma');
+  var arquivo=document.getElementById('arquivo');
+  var imagemInput=document.getElementById('imagem');
+  var campoSenha=document.getElementById('campoSenha');
 
-  nome.addEventListener('input', () => {
-    document.getElementById('fNome').textContent = nome.value.trim() ? nome.value.toUpperCase() : 'SEU NOME';
+  nome.addEventListener('input',function(){
+    document.getElementById('fNome').textContent = nome.value.trim()? nome.value.toUpperCase() : 'SEU NOME';
   });
-  turma.addEventListener('change', () => {
+  turma.addEventListener('change',function(){
     document.getElementById('fTurma').textContent = turma.value || 'Turma';
   });
-  document.querySelectorAll('input[name=posicao]').forEach(r => {
-    r.addEventListener('change', () => {
-      card.style.setProperty('--cor', cores[r.value]);
-      document.getElementById('fPos').textContent = r.value;
-      document.getElementById('fIcon').textContent = icones[r.value];
+  var radios=document.querySelectorAll('input[name=posicao]');
+  for(var i=0;i<radios.length;i++){
+    radios[i].addEventListener('change',function(){
+      card.style.setProperty('--cor', cores[this.value]||'#888');
+      document.getElementById('fPos').textContent=this.value;
+      document.getElementById('fIcon').textContent=icones[this.value]||'⚽';
+      // mostra/esconde senha conforme comissão
+      if(this.dataset.staff==='1'){ campoSenha.classList.add('show'); }
+      else { campoSenha.classList.remove('show'); document.getElementById('senha_staff').value=''; }
     });
-  });
+  }
 
-  // Reduz a foto no navegador (máx 600px) e converte em base64
-  arquivo.addEventListener('change', () => {
-    const file = arquivo.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX = 600;
-        let {width, height} = img;
-        if (width > height && width > MAX){ height = height*MAX/width; width = MAX; }
-        else if (height > MAX){ width = width*MAX/height; height = MAX; }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-        imagemInput.value = dataUrl;
-        const fImg = document.getElementById('fImg');
-        fImg.src = dataUrl; fImg.style.display = 'block';
-        document.getElementById('fPlace').style.display = 'none';
-        document.getElementById('drop').querySelector('p').innerHTML = '<b>Foto pronta!</b> Toque para trocar';
+  arquivo.addEventListener('change',function(){
+    var file=arquivo.files[0]; if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var img=new Image();
+      img.onload=function(){
+        var MAX=600, w=img.width, h=img.height;
+        if(w>h && w>MAX){ h=h*MAX/w; w=MAX; } else if(h>MAX){ w=w*MAX/h; h=MAX; }
+        var canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        var dataUrl=canvas.toDataURL('image/jpeg',0.82);
+        imagemInput.value=dataUrl;
+        var fImg=document.getElementById('fImg');
+        fImg.src=dataUrl; fImg.style.display='block';
+        document.getElementById('fPlace').style.display='none';
+        document.getElementById('drop').querySelector('p').innerHTML='<b>Foto pronta!</b> Toque para trocar';
       };
-      img.src = e.target.result;
+      img.src=e.target.result;
     };
     reader.readAsDataURL(file);
   });
 
-  // Evita envio sem foto
-  document.getElementById('form').addEventListener('submit', e => {
-    if (!imagemInput.value){ e.preventDefault(); alert('Escolha uma foto antes de salvar!'); }
-    else { document.getElementById('btnEnviar').textContent = 'Salvando...'; }
+  document.getElementById('form').addEventListener('submit',function(e){
+    if(!imagemInput.value){ e.preventDefault(); alert('Escolha uma foto antes de salvar!'); return; }
+    document.getElementById('btnEnviar').textContent='Salvando...';
   });
 </script>
 {% endblock %}
@@ -467,8 +483,9 @@ TEMPLATES = {
     color:#fff;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;
     font-weight:700;text-transform:uppercase;letter-spacing:.5px;font-size:.66rem}
   .fig-faixa .ic{font-size:.95rem}
-  .fig-foto{flex:1 1 auto;min-height:0;overflow:hidden}
-  .fig-foto img{width:100%;height:100%;object-fit:cover;display:block}
+  .fig-foto{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(45deg,#0c1f15 0 12px,#0a1b12 12px 24px)}
+  .fig-foto img{width:100%;height:100%;object-fit:contain;display:block}
   .fig-rodape{flex-shrink:0;padding:8px 10px 10px;background:#05110b}
   .fig-rodape .nome{font-family:'Anton',sans-serif;font-size:.95rem;text-transform:uppercase;line-height:1;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -514,11 +531,12 @@ TEMPLATES = {
 </div>
 
 {% if figurinhas %}
-  {% set icones = {'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥'} %}
+  {% set icones = {'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥','Técnico':'📋','Auxiliar':'📣','Árbitra':'🟨'} %}
+  {% set cores = {'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4','Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626','Técnico':'#475569','Auxiliar':'#0d9488','Árbitra':'#d4a017'} %}
   <div class="album">
     {% for f in figurinhas %}
     <div class="card-bloco" data-id="{{ f.id }}" data-nome="{{ f.nome }}" data-turma="{{ f.turma }}" data-posicao="{{ f.posicao }}">
-      <div class="figurinha" style="--cor:var(--pos-{{ f.posicao|lower|replace(' ','-') }})">
+      <div class="figurinha" style="--cor:{{ cores[f.posicao] }}">
         <div class="fig-inner">
           <div class="fig-faixa"><span>{{ f.posicao }}</span><span class="ic">{{ icones[f.posicao] }}</span></div>
           <div class="fig-foto"><img src="{{ f.imagem }}" alt="{{ f.nome }}"></div>
@@ -548,8 +566,8 @@ TEMPLATES = {
 
 {% block scripts %}
 <script>
-  var CORES={'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4','Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626'};
-  var ICONES={'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥'};
+  var CORES={'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4','Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626','Técnico':'#475569','Auxiliar':'#0d9488','Árbitra':'#d4a017'};
+  var ICONES={'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥','Técnico':'📋','Auxiliar':'📣','Árbitra':'🟨'};
 
   function carregarImagem(src){return new Promise(function(res,rej){var i=new Image();i.onload=function(){res(i);};i.onerror=rej;i.src=src;});}
   function baixarBlob(blob,nome){var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href);},1500);}
@@ -568,6 +586,12 @@ TEMPLATES = {
     if(ar>tr){sh=img.height;sw=sh*tr;sx=(img.width-sw)/2;sy=0;}
     else{sw=img.width;sh=sw/tr;sx=0;sy=(img.height-sh)/2;}
     ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h);
+  }
+  function contain(ctx,img,x,y,w,h){
+    var ar=img.width/img.height, tr=w/h, dw,dh;
+    if(ar>tr){dw=w;dh=w/ar;}else{dh=h;dw=h*ar;}
+    var dx=x+(w-dw)/2, dy=y+(h-dh)/2;
+    ctx.drawImage(img,0,0,img.width,img.height,dx,dy,dw,dh);
   }
   function fitFont(ctx,text,fam,maxW,start,min){
     var px=start;ctx.font=px+'px '+fam;
@@ -599,8 +623,9 @@ TEMPLATES = {
     ctx.fillText(ICONES[d.posicao]||'⚽',ix+iw*0.95,iy+bandH*0.52);
     // foto
     var fy=iy+bandH, fH=ih*0.69;
-    ctx.fillStyle='#0a1b12';ctx.fillRect(ix,fy,iw,fH);
-    if(img){ctx.save();ctx.beginPath();ctx.rect(ix,fy,iw,fH);ctx.clip();cover(ctx,img,ix,fy,iw,fH);ctx.restore();}
+    var fgr=ctx.createLinearGradient(0,fy,0,fy+fH);fgr.addColorStop(0,'#0c1f15');fgr.addColorStop(1,'#0a1b12');
+    ctx.fillStyle=fgr;ctx.fillRect(ix,fy,iw,fH);
+    if(img){ctx.save();ctx.beginPath();ctx.rect(ix,fy,iw,fH);ctx.clip();contain(ctx,img,ix,fy,iw,fH);ctx.restore();}
     // rodapé
     var ry=fy+fH, rH=ih-(bandH+fH);
     var gr=ctx.createLinearGradient(0,ry,0,ry+rH);gr.addColorStop(0,'rgba(5,17,11,.15)');gr.addColorStop(.45,'#05110b');gr.addColorStop(1,'#05110b');
@@ -660,50 +685,72 @@ TEMPLATES = {
       var sel=document.getElementById('filtroTurma');
       var turmaLabel=(sel&&sel.value)?sel.value:'';
       if(!turmaLabel){var ts=dados.map(function(d){return d.turma;}).filter(function(v,i,a){return a.indexOf(v)===i;});turmaLabel=ts.length===1?ts[0]:'Seleção da escola';}
-      var linhas=[
+
+      var comPos=['Técnico','Auxiliar','Árbitra'];
+      var comissao=dados.filter(function(d){return comPos.indexOf(d.posicao)>=0;});
+      var linhasJog=[
         dados.filter(function(d){return d.posicao==='Atacante';}),
         dados.filter(function(d){return d.posicao==='Volante'||d.posicao==='Meio de campo';}),
         dados.filter(function(d){return d.posicao==='Zagueiro'||d.posicao==='Lateral';}),
         dados.filter(function(d){return d.posicao==='Goleiro';})
       ];
-      var maxCount=Math.max(1,linhas[0].length,linhas[1].length,linhas[2].length,linhas[3].length);
-      var FW=1600, HH=200, gap=20, sideM=60, rowGap=34;
-      var cardW=Math.min(250,(FW-2*sideM-gap*(maxCount-1))/maxCount);cardW=Math.max(120,cardW);
+
+      var FW=1700, sideM=50, gap=16, rowGap=26;
+      var maxLine=Math.max(1,linhasJog[0].length,linhasJog[1].length,linhasJog[2].length,linhasJog[3].length,comissao.length);
+      var idealW=(FW-2*sideM-gap*(maxLine-1))/maxLine;
+      var cardW=Math.min(230,Math.max(120,idealW));
       var cardH=cardW*88/63;
-      var fieldH=4*cardH+5*rowGap;
+      var perRow=Math.max(1,Math.floor((FW-2*sideM+gap)/(cardW+gap)));
+
+      function chunk(arr){var o=[];for(var i=0;i<arr.length;i+=perRow)o.push(arr.slice(i,i+perRow));return o;}
+      var fileiras=[];
+      chunk(comissao).forEach(function(r){fileiras.push(r);});
+      linhasJog.forEach(function(l){chunk(l).forEach(function(r){fileiras.push(r);});});
+      if(!fileiras.length){alert('Sem figurinhas para o time.');return;}
+
+      var HH=180, labelH=comissao.length?48:0, fieldTop=HH;
+      var fieldH=rowGap+labelH+fileiras.length*(cardH+rowGap);
       var H=HH+fieldH;
-      var scale=1.7;
+      var scale=1.6;
       var cv=document.createElement('canvas');cv.width=Math.round(FW*scale);cv.height=Math.round(H*scale);
       var ctx=cv.getContext('2d');ctx.scale(scale,scale);
-      // campo
-      desenharCampo(ctx,0,HH,FW,fieldH);
+
+      desenharCampo(ctx,0,fieldTop,FW,fieldH);
       // header
       ctx.fillStyle='#06281a';ctx.fillRect(0,0,FW,HH);
       ctx.fillStyle='#f4c542';ctx.fillRect(0,HH-5,FW,5);
-      var logoEl=document.querySelector('.logo-badge img');
-      var lx=50;
+      var logoEl=document.querySelector('.logo-badge img');var lx=50;
       if(logoEl){var lg=await carregarImagem(logoEl.src).catch(function(){return null;});
-        if(lg){var bs=HH*0.6,bx=50,by=(HH-bs)/2,ipd=bs*0.1;
+        if(lg){var bs=HH*0.62,bx=50,by=(HH-bs)/2,ipd=bs*0.1;
           ctx.fillStyle='#fff';rrect(ctx,bx,by,bs,bs,bs*0.16);ctx.fill();
           var ar=lg.width/lg.height,dw=bs-2*ipd,dh=dw/ar;if(dh>bs-2*ipd){dh=bs-2*ipd;dw=dh*ar;}
           ctx.drawImage(lg,bx+(bs-dw)/2,by+(bs-dh)/2,dw,dh);lx=bx+bs+28;}
       }
       ctx.textBaseline='middle';ctx.textAlign='left';
-      ctx.fillStyle='#fff';ctx.font='38px Anton';ctx.fillText('TIME DA TURMA',lx,HH*0.36);
-      ctx.fillStyle='#f4c542';ctx.font='56px Anton';ctx.fillText(turmaLabel.toUpperCase(),lx,HH*0.66);
+      ctx.fillStyle='#fff';ctx.font='36px Anton';ctx.fillText('TIME DA TURMA',lx,HH*0.36);
+      ctx.fillStyle='#f4c542';ctx.font='54px Anton';ctx.fillText(turmaLabel.toUpperCase(),lx,HH*0.66);
       ctx.fillStyle='#c3d6c9';ctx.textAlign='right';ctx.font='22px Sora';
-      ctx.fillText('Copa CESANAM • Col. Est. Ana Nastre de Melo',FW-50,HH/2);
-      // cartões por linha
-      for(var li=0;li<4;li++){
-        var linha=linhas[li];var n=linha.length;if(!n)continue;
-        var rowY=HH+rowGap+li*(cardH+rowGap);
+      ctx.fillText(dados.length+' figurinhas • Copa CESANAM',FW-50,HH*0.32);
+      ctx.fillText('Colégio Estadual Ana Nastre de Melo',FW-50,HH*0.64);
+
+      var y=fieldTop+rowGap;
+      if(comissao.length){
+        ctx.fillStyle='rgba(0,0,0,.32)';rrect(ctx,FW*0.32,y,FW*0.36,labelH*0.74,labelH*0.37);ctx.fill();
+        ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffd866';ctx.font='26px Anton';
+        ctx.fillText('COMISSÃO TÉCNICA',FW/2,y+labelH*0.37);
+        y+=labelH;
+      }
+      for(var fi=0;fi<fileiras.length;fi++){
+        var linha=fileiras[fi];var n=linha.length;
         var totalW=n*cardW+(n-1)*gap;var startX=(FW-totalW)/2;
-        for(var k=0;k<n;k++){desenharCartao(ctx,startX+k*(cardW+gap),rowY,cardW,cardH,linha[k],linha[k].img);}
+        for(var k=0;k<n;k++){desenharCartao(ctx,startX+k*(cardW+gap),y,cardW,cardH,linha[k],linha[k].img);}
+        y+=cardH+rowGap;
       }
       cv.toBlob(function(blob){baixarBlob(blob,'Time_'+slug(turmaLabel)+'.png');},'image/png');
     }catch(e){alert('Não consegui gerar a imagem do time: '+e);}
     finally{setTimeout(function(){btn.disabled=false;btn.textContent=t;},600);}
   }
+
 </script>
 {% endblock %}
 ''',
@@ -727,7 +774,11 @@ def login_obrigatorio(view):
 # ----------------------- ALUNO -----------------------
 @app.route("/")
 def index():
-    return render_template("index.html", posicoes=POSICOES)
+    return render_template("index.html",
+                           jogadores=POSICOES_JOGADORES,
+                           comissao=POSICOES_COMISSAO,
+                           turmas=TURMAS,
+                           turma_comissao=TURMA_COMISSAO)
 
 
 @app.route("/salvar", methods=["POST"])
@@ -736,18 +787,30 @@ def salvar():
     turma = (request.form.get("turma") or "").strip()
     posicao = (request.form.get("posicao") or "").strip()
     imagem = request.form.get("imagem") or ""
+    senha_staff = request.form.get("senha_staff") or ""
+
+    turmas_validas = TURMAS + [TURMA_COMISSAO]
+    eh_comissao = posicao in POSICOES_COMISSAO
 
     erros = []
     if len(nome) < 2:
-        erros.append("Escreva seu nome.")
-    if len(turma) < 1:
-        erros.append("Selecione sua turma.")
+        erros.append("Escreva o nome.")
+    if turma not in turmas_validas:
+        erros.append("Selecione uma turma válida.")
     if posicao not in POSICOES:
-        erros.append("Selecione uma posicao valida.")
+        erros.append("Selecione uma posição válida.")
     if not imagem.startswith("data:image/"):
         erros.append("Escolha uma foto.")
     if len(imagem) > MAX_IMAGEM_BYTES * 1.4:
         erros.append("A foto ficou muito grande, tente outra.")
+
+    # Regras da comissão técnica
+    if eh_comissao:
+        if senha_staff != SENHA_PROFESSOR:
+            erros.append("As posições da comissão técnica (Técnico, Auxiliar, Árbitra) exigem a senha do professor.")
+    else:
+        if turma == TURMA_COMISSAO:
+            erros.append("A opção \"Todas as turmas\" é só para a comissão técnica.")
 
     if erros:
         for e in erros:
@@ -761,7 +824,7 @@ def salvar():
             cur.execute(
                 "INSERT INTO figurinhas (nome, turma, posicao, imagem, criado_em) "
                 "VALUES (%s, %s, %s, %s, %s)",
-                (nome[:60], turma[:20], posicao, imagem,
+                (nome[:60], turma[:30], posicao, imagem,
                  datetime.now().strftime("%d/%m/%Y %H:%M")),
             )
     finally:
@@ -795,7 +858,12 @@ def painel():
 
     sql = "SELECT id, nome, turma, posicao, imagem, criado_em FROM figurinhas WHERE TRUE"
     params = []
-    if turma_filtro:
+    if turma_filtro and turma_filtro != TURMA_COMISSAO:
+        # Mostra a turma escolhida + a comissão geral (ex.: a diretora/árbitra de todos os times)
+        sql += " AND (turma = %s OR (turma = %s AND posicao IN ('Técnico','Auxiliar','Árbitra')))"
+        params.append(turma_filtro)
+        params.append(TURMA_COMISSAO)
+    elif turma_filtro:
         sql += " AND turma = %s"
         params.append(turma_filtro)
     if posicao_filtro:
