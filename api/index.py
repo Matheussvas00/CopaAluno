@@ -807,9 +807,12 @@ TEMPLATES = {
       var FW=1800, sideM=40, gap=10, rowGap=22;
       var MAX_PER_ROW=11;
 
-      // Tamanho das figurinhas de jogadores adaptado ao grupo mais cheio
+      // Tamanho das figurinhas: tamanho normal fixo, só encolhe se não couber
       var maxGrupo=Math.max.apply(null,[1].concat(grupos.map(function(g){return Math.min(g.length,MAX_PER_ROW);})));
-      var cardW=Math.min(210,Math.max(100,Math.floor((FW-2*sideM-gap*(maxGrupo-1))/maxGrupo)));
+      var PREF_CARD_W=200, MIN_CARD_W=100, availW=FW-2*sideM;
+      var cardW=(PREF_CARD_W*maxGrupo+gap*(maxGrupo-1)<=availW)
+        ? PREF_CARD_W
+        : Math.max(MIN_CARD_W,Math.floor((availW-gap*(maxGrupo-1))/maxGrupo));
       var cardH=Math.round(cardW*88/63);
 
       function chunkN(arr,n){var o=[];for(var i=0;i<arr.length;i+=n)o.push(arr.slice(i,i+n));return o;}
