@@ -19,6 +19,7 @@ from jinja2 import DictLoader
 
 # ===================== CONFIGURACOES =====================
 SENHA_PROFESSOR = os.environ.get("SENHA_PROFESSOR", "copa2026")
+SENHA_COMISSAO  = os.environ.get("SENHA_COMISSAO",  "cesanam2026")   # Auxiliar e Árbitra
 SECRET_KEY = os.environ.get("SECRET_KEY", "troque-este-texto-por-algo-aleatorio-grande")
 
 # Posicoes de jogadores (livres para o aluno) e de comissao (exigem senha)
@@ -211,8 +212,10 @@ TEMPLATES = {
   .pos-btn .ic{font-size:1.4rem}
   .pos-btn input:checked + span{border-color:var(--cor);background:color-mix(in srgb, var(--cor) 32%, rgba(0,0,0,.4));box-shadow:0 0 0 1px var(--cor) inset}
 
-  #campoSenha{display:none}
-  #campoSenha.show{display:block}
+  #campoSenhaTecnico{display:none}
+  #campoSenhaTecnico.show{display:block}
+  #campoSenhaComissao{display:none}
+  #campoSenhaComissao.show{display:block}
   .aviso-staff{font-size:.82rem;color:#ffd866;background:rgba(244,197,66,.1);border:1px solid rgba(244,197,66,.35);
     border-radius:10px;padding:10px 12px;margin-top:8px;line-height:1.4}
 
@@ -293,7 +296,7 @@ TEMPLATES = {
         </label>
         {% endfor %}
       </div>
-      <div class="grupo-pos">🔒 Comissão técnica (precisa da senha do professor)</div>
+      <div class="grupo-pos">🔒 Comissão técnica (senha exigida)</div>
       <div class="posicoes">
         {% for p in comissao %}
         <label class="pos-btn" style="--cor:{{ cores[p] }}">
@@ -304,10 +307,17 @@ TEMPLATES = {
       </div>
     </div>
 
-    <div class="campo" id="campoSenha">
-      <label for="senha_staff">Senha do professor</label>
-      <input type="password" id="senha_staff" name="senha_staff" placeholder="Digite a senha para cadastrar a comissão">
-      <div class="aviso-staff">As posições de Técnico, Auxiliar e Árbitra são protegidas por senha do professor.</div>
+    <!-- Senha para Técnico (senha do professor) -->
+    <div class="campo" id="campoSenhaTecnico">
+      <label for="senha_staff">🔒 Senha do professor</label>
+      <input type="password" id="senha_staff" name="senha_staff" placeholder="Senha do professor (posição de Técnico)">
+      <div class="aviso-staff">A posição de <strong>Técnico</strong> é exclusiva do professor e requer a senha dele.</div>
+    </div>
+    <!-- Senha para Auxiliar / Árbitra (senha da comissão) -->
+    <div class="campo" id="campoSenhaComissao">
+      <label for="senha_comissao">🔑 Senha da comissão técnica</label>
+      <input type="password" id="senha_comissao" name="senha_comissao" placeholder="Senha da comissão técnica">
+      <div class="aviso-staff">As posições de <strong>Auxiliar</strong> e <strong>Árbitra</strong> usam a senha da comissão técnica.</div>
     </div>
 
     <div class="campo">
@@ -356,7 +366,7 @@ TEMPLATES = {
   var turma=document.getElementById('turma');
   var arquivo=document.getElementById('arquivo');
   var imagemInput=document.getElementById('imagem');
-  var campoSenha=document.getElementById('campoSenha');
+  // campos de senha controlados individualmente abaixo
 
   nome.addEventListener('input',function(){
     document.getElementById('fNome').textContent = nome.value.trim()? nome.value.toUpperCase() : 'SEU NOME';
@@ -364,15 +374,29 @@ TEMPLATES = {
   turma.addEventListener('change',function(){
     document.getElementById('fTurma').textContent = turma.value || 'Turma';
   });
+  var campoSenhaTecnico=document.getElementById('campoSenhaTecnico');
+  var campoSenhaComissao=document.getElementById('campoSenhaComissao');
   var radios=document.querySelectorAll('input[name=posicao]');
   for(var i=0;i<radios.length;i++){
     radios[i].addEventListener('change',function(){
       card.style.setProperty('--cor', cores[this.value]||'#888');
       document.getElementById('fPos').textContent=this.value;
       document.getElementById('fIcon').textContent=icones[this.value]||'⚽';
-      // mostra/esconde senha conforme comissão
-      if(this.dataset.staff==='1'){ campoSenha.classList.add('show'); }
-      else { campoSenha.classList.remove('show'); document.getElementById('senha_staff').value=''; }
+      var v=this.value;
+      if(v==='Técnico'){
+        campoSenhaTecnico.classList.add('show');
+        campoSenhaComissao.classList.remove('show');
+        document.getElementById('senha_comissao').value='';
+      } else if(v==='Auxiliar'||v==='Árbitra'){
+        campoSenhaComissao.classList.add('show');
+        campoSenhaTecnico.classList.remove('show');
+        document.getElementById('senha_staff').value='';
+      } else {
+        campoSenhaTecnico.classList.remove('show');
+        campoSenhaComissao.classList.remove('show');
+        document.getElementById('senha_staff').value='';
+        document.getElementById('senha_comissao').value='';
+      }
     });
   }
 
@@ -821,69 +845,89 @@ TEMPLATES = {
     var comissao=dados.filter(function(d){return comPos.indexOf(d.posicao)>=0;});
     var jogadores=dados.filter(function(d){return comPos.indexOf(d.posicao)<0;});
 
-    // Mantém todos os 4 slots táticos (com arrays vazios) para posicionamento correto no campo
-    var allGrupos=[
-      jogadores.filter(function(d){return d.posicao==='Atacante';}),
-      jogadores.filter(function(d){return d.posicao==='Volante'||d.posicao==='Meio de campo';}),
-      jogadores.filter(function(d){return d.posicao==='Zagueiro'||d.posicao==='Lateral';}),
-      jogadores.filter(function(d){return d.posicao==='Goleiro';})
+    // ── ORGANIZAÇÃO TÁTICA POR POSIÇÃO ──────────────────────────────────────────
+    // Agrupa jogadores por zona do campo (ataque → goleiro, de cima pra baixo)
+    var ZONAS=[
+      {label:'Atacantes', posicoes:['Atacante'],            frac:0.14},
+      {label:'Meias',     posicoes:['Meio de campo','Volante'], frac:0.38},
+      {label:'Defesa',    posicoes:['Zagueiro','Lateral'],  frac:0.63},
+      {label:'Goleiros',  posicoes:['Goleiro'],             frac:0.87},
     ];
-    // Centro de cada zona como fração da altura do campo (ataque=topo, goleiro=fundo)
-    var FRAC=[0.13,0.38,0.63,0.87];
+    var grupos=ZONAS.map(function(z){
+      return {
+        label:z.label, frac:z.frac,
+        jogadores:jogadores.filter(function(d){return z.posicoes.indexOf(d.posicao)>=0;})
+      };
+    });
 
-    var FW=1800, gap=10, rowGap=22, sideM=40;
-    var MAX_PER_ROW=11;
+    // ── DIMENSÕES ────────────────────────────────────────────────────────────────
+    var FW=1800, sideM=30, gap=8, rowGap=14;
+    var availW=FW-2*sideM;
+
+    // Tamanho das figurinhas dos jogadores:
+    // Ajusta para a linha mais cheia caber na largura disponível (max 40 alunos na linha)
+    var MAX_PER_ROW=14;  // máximo por linha de zona
+    var maxInRow=Math.max.apply(null,[1].concat(grupos.map(function(g){
+      return Math.min(g.jogadores.length, MAX_PER_ROW);
+    })));
+    var PREF_W=200, MIN_W=90;
+    var cardW=Math.max(MIN_W, Math.min(PREF_W, Math.floor((availW - gap*(maxInRow-1)) / maxInRow)));
+    var cardH=Math.round(cardW*88/63);
+
+    // Comissão técnica: linha única no topo, figurinhas um pouco maiores
+    var comCount=Math.max(1, comissao.length);
+    var comCardW=Math.max(140, Math.min(240, Math.floor((availW - gap*(comCount-1)) / comCount)));
+    var comCardH=Math.round(comCardW*88/63);
 
     function chunkN(arr,n){var o=[];for(var i=0;i<arr.length;i+=n)o.push(arr.slice(i,i+n));return o;}
 
-    // Tamanho normal das figurinhas, só encolhe se a linha mais cheia não couber
-    var maxGrupo=Math.max.apply(null,[1].concat(allGrupos.map(function(g){return Math.min(g.length,MAX_PER_ROW);})));
-    var PREF_CARD_W=200,MIN_CARD_W=100,availW=FW-2*sideM;
-    var cardW=(PREF_CARD_W*maxGrupo+gap*(maxGrupo-1)<=availW)?PREF_CARD_W:Math.max(MIN_CARD_W,Math.floor((availW-gap*(maxGrupo-1))/maxGrupo));
-    var cardH=Math.round(cardW*88/63);
-
-    // Comissão técnica: tamanho fixo, seção própria acima do campo
-    var maxComRow=Math.min(comissao.length||1,6);
-    var comCardW=Math.min(200,Math.max(140,Math.floor((FW-2*sideM-gap*(maxComRow-1))/maxComRow)));
-    var comCardH=Math.round(comCardW*88/63);
-    var COM_LABEL=50;
-    var comRows=comissao.length?chunkN(comissao,maxComRow):[];
-    var comSecH=comissao.length?(COM_LABEL+comRows.length*(comCardH+rowGap)+rowGap):0;
-
-    // Altura do campo: mínimo proporcional ao campo real, expande se os grupos precisarem
-    var MIN_FIELD_H=Math.round(FW*0.62); // ~1116px — aspecto ~1.61:1, próximo ao campo real
+    // Altura necessária para cada grupo no campo
+    var MIN_FIELD_H=Math.round(FW*0.60);
     var fieldH=MIN_FIELD_H;
-    allGrupos.forEach(function(g,gi){
-      if(!g.length)return;
-      var nRows=Math.ceil(g.length/MAX_PER_ROW);
-      var groupH=nRows*cardH+(nRows-1)*rowGap;
-      var frac=FRAC[gi];
-      // O grupo fica centralizado em frac*fieldH; garante que não saia pelo topo nem pelo fundo
+    grupos.forEach(function(g){
+      if(!g.jogadores.length)return;
+      var nRows=Math.ceil(g.jogadores.length/MAX_PER_ROW);
+      var groupH=nRows*cardH+(nRows-1)*rowGap + rowGap*4;
+      var f=g.frac;
       var needed=Math.ceil(Math.max(
-        frac>0.01?(groupH/2+rowGap*2)/frac:0,
-        (groupH/2+rowGap*2)/Math.max(0.01,1-frac)
+        f>0.01?(groupH/2+rowGap*3)/f:0,
+        (groupH/2+rowGap*3)/Math.max(0.01,1-f)
       ));
       fieldH=Math.max(fieldH,needed);
     });
 
-    var HH=180;
-    var H=HH+comSecH+fieldH+30;
+    var HH=180;  // altura do header
+    var COM_LABEL_H=46;
+    var comSecH=comissao.length?(COM_LABEL_H + comCardH + rowGap*2):0;
+    var H=HH + comSecH + fieldH + 40;
+
     var scale=1.6;
-    var cv=document.createElement('canvas');cv.width=Math.round(FW*scale);cv.height=Math.round(H*scale);
-    var ctx=cv.getContext('2d');ctx.scale(scale,scale);
+    var cv=document.createElement('canvas');
+    cv.width=Math.round(FW*scale);
+    cv.height=Math.round(H*scale);
+    var ctx=cv.getContext('2d');
+    ctx.scale(scale,scale);
 
     var fieldTop=HH+comSecH;
-    desenharCampo(ctx,0,fieldTop,FW,fieldH+30);
 
-    // Header
+    // ── CAMPO ────────────────────────────────────────────────────────────────────
+    desenharCampo(ctx,0,fieldTop,FW,fieldH+40);
+
+    // ── HEADER ───────────────────────────────────────────────────────────────────
     ctx.fillStyle='#06281a';ctx.fillRect(0,0,FW,HH);
     ctx.fillStyle='#f4c542';ctx.fillRect(0,HH-5,FW,5);
-    var logoEl=document.querySelector('.logo-badge img');var lx=50;
-    if(logoEl){var lg=await carregarImagem(logoEl.src).catch(function(){return null;});
-      if(lg){var bs=HH*0.62,bx=50,by=(HH-bs)/2,ipd=bs*0.1;
+    var lx=50;
+    var logoEl=document.querySelector('.logo-badge img');
+    if(logoEl){
+      var lg=await carregarImagem(logoEl.src).catch(function(){return null;});
+      if(lg){
+        var bs=HH*0.62,bx=50,by=(HH-bs)/2,ipd=bs*0.1;
         ctx.fillStyle='#fff';rrect(ctx,bx,by,bs,bs,bs*0.16);ctx.fill();
-        var ar=lg.width/lg.height,dw=bs-2*ipd,dh=dw/ar;if(dh>bs-2*ipd){dh=bs-2*ipd;dw=dh*ar;}
-        ctx.drawImage(lg,bx+(bs-dw)/2,by+(bs-dh)/2,dw,dh);lx=bx+bs+28;}
+        var ar=lg.width/lg.height,dw=bs-2*ipd,dh=dw/ar;
+        if(dh>bs-2*ipd){dh=bs-2*ipd;dw=dh*ar;}
+        ctx.drawImage(lg,bx+(bs-dw)/2,by+(bs-dh)/2,dw,dh);
+        lx=bx+bs+28;
+      }
     }
     ctx.textBaseline='middle';ctx.textAlign='left';
     ctx.fillStyle='#fff';ctx.font='36px Anton';ctx.fillText('TIME DA TURMA',lx,HH*0.36);
@@ -892,34 +936,54 @@ TEMPLATES = {
     ctx.fillText(jogadores.length+' jogadores • Copa CESANAM',FW-50,HH*0.32);
     ctx.fillText('Colégio Estadual Ana Nastre de Melo',FW-50,HH*0.64);
 
-    // Seção comissão técnica (fundo distinto, fixada acima do campo)
+    // ── COMISSÃO TÉCNICA (faixa fixa acima do campo) ─────────────────────────────
     if(comissao.length){
-      ctx.fillStyle='rgba(6,22,14,.96)';ctx.fillRect(0,HH,FW,comSecH);
-      ctx.fillStyle='rgba(244,197,66,.18)';ctx.fillRect(0,HH,FW,COM_LABEL);
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffd866';ctx.font='28px Anton';
-      ctx.fillText('— COMISSÃO TÉCNICA —',FW/2,HH+COM_LABEL/2);
-      var cy=HH+COM_LABEL+rowGap;
-      comRows.forEach(function(row){
-        var tw=row.length*comCardW+(row.length-1)*gap,cx=(FW-tw)/2;
-        row.forEach(function(d,k){desenharCartao(ctx,cx+k*(comCardW+gap),cy,comCardW,comCardH,d,d.img);});
-        cy+=comCardH+rowGap;
+      ctx.fillStyle='rgba(6,22,14,.97)';ctx.fillRect(0,HH,FW,comSecH);
+      // Faixa dourada de rótulo
+      ctx.fillStyle='rgba(244,197,66,.22)';ctx.fillRect(0,HH,FW,COM_LABEL_H);
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='#ffd866';ctx.font='28px Anton';
+      ctx.fillText('— COMISSÃO TÉCNICA —',FW/2,HH+COM_LABEL_H/2);
+      // Linha única centralizada com todas as figurinhas da comissão
+      var comY=HH+COM_LABEL_H+rowGap;
+      var tw=comissao.length*comCardW+(comissao.length-1)*gap;
+      var comStartX=(FW-tw)/2;
+      comissao.forEach(function(d,k){
+        desenharCartao(ctx,comStartX+k*(comCardW+gap),comY,comCardW,comCardH,d,d.img);
       });
     }
 
-    // Jogadores nas zonas táticas: cada grupo centralizado na sua fração do campo
-    allGrupos.forEach(function(g,gi){
-      if(!g.length)return;
-      var rows=chunkN(g,MAX_PER_ROW);
+    // ── JOGADORES NAS ZONAS TÁTICAS ───────────────────────────────────────────────
+    // Rótulo de posição na lateral esquerda de cada zona
+    grupos.forEach(function(g){
+      if(!g.jogadores.length)return;
+      var rows=chunkN(g.jogadores,MAX_PER_ROW);
       var groupH=rows.length*cardH+(rows.length-1)*rowGap;
-      var centerY=fieldTop+FRAC[gi]*fieldH;
+      var centerY=fieldTop+g.frac*fieldH;
       var startY=Math.round(centerY-groupH/2);
+
+      // Fundo semi-transparente atrás do grupo (ajuda leitura em turmas grandes)
+      var tw_max=Math.min(g.jogadores.length,MAX_PER_ROW)*cardW+(Math.min(g.jogadores.length,MAX_PER_ROW)-1)*gap;
+      var bgX=(FW-tw_max)/2-12, bgW=tw_max+24, bgY=startY-8, bgH=groupH+16;
+      ctx.fillStyle='rgba(0,0,0,0.28)';
+      rrect(ctx,bgX,bgY,bgW,bgH,14);ctx.fill();
+
+      // Rótulo da zona (ex.: "Atacantes")
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='rgba(255,255,255,0.55)';ctx.font='18px Anton';
+      ctx.fillText(g.label.toUpperCase(),FW/2,startY-22);
+
       rows.forEach(function(row,ri){
-        var n=row.length,tw=n*cardW+(n-1)*gap,sx=(FW-tw)/2;
-        row.forEach(function(d,k){desenharCartao(ctx,sx+k*(cardW+gap),startY+ri*(cardH+rowGap),cardW,cardH,d,d.img);});
+        var n=row.length;
+        var tw2=n*cardW+(n-1)*gap;
+        var sx=(FW-tw2)/2;
+        row.forEach(function(d,k){
+          desenharCartao(ctx,sx+k*(cardW+gap),startY+ri*(cardH+rowGap),cardW,cardH,d,d.img);
+        });
       });
     });
 
-    return {cv:cv,label:turmaLabel};
+    return {cv:cv, label:turmaLabel};
   }
 
   // ── Download direto ──
@@ -986,6 +1050,7 @@ def login_obrigatorio(view):
 # ----------------------- ALUNO -----------------------
 @app.route("/")
 def index():
+    # TURMAS não inclui TURMA_COMISSAO — removida do select do aluno
     return render_template("index.html",
                            jogadores=POSICOES_JOGADORES,
                            comissao=POSICOES_COMISSAO,
@@ -1016,13 +1081,20 @@ def salvar():
     if len(imagem) > MAX_IMAGEM_BYTES * 1.4:
         erros.append("A foto ficou muito grande, tente outra.")
 
-    # Regras da comissão técnica
-    if eh_comissao:
+    # ── Regras da comissão técnica ──────────────────────────────────────────
+    if posicao == "Técnico":
+        # Somente o professor pode ser Técnico
         if senha_staff != SENHA_PROFESSOR:
-            erros.append("As posições da comissão técnica (Técnico, Auxiliar, Árbitra) exigem a senha do professor.")
+            erros.append("A posição de Técnico é exclusiva do professor. Use a senha do professor.")
+    elif posicao in ("Auxiliar", "Árbitra"):
+        # Auxiliar e Árbitra usam a senha da comissão
+        senha_comissao_form = request.form.get("senha_comissao") or ""
+        if senha_comissao_form != SENHA_COMISSAO:
+            erros.append("As posições de Auxiliar e Árbitra requerem a senha da comissão técnica.")
     else:
+        # Jogadores normais não devem usar TURMA_COMISSAO
         if turma == TURMA_COMISSAO:
-            erros.append("A opção \"Todas as turmas\" é só para a comissão técnica.")
+            erros.append("Selecione sua turma corretamente.")
 
     if erros:
         for e in erros:
