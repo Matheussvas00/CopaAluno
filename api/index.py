@@ -607,6 +607,16 @@ TEMPLATES = {
     font-family:'Sora',sans-serif;font-weight:700;font-size:.78rem;border-radius:8px;padding:7px 10px;white-space:nowrap}
   .btn-mini:hover{background:rgba(244,197,66,.28)}
   .btn-mini:disabled{opacity:.6;cursor:default}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;overflow-y:auto;
+    padding:24px 16px;justify-content:center;align-items:flex-start}
+  .modal-overlay.aberto{display:flex}
+  .modal-box{background:#06281a;border:1px solid rgba(244,197,66,.3);border-radius:18px;padding:24px;
+    width:100%;max-width:960px;margin:auto}
+  .modal-topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .modal-topo h3{font-family:'Anton',sans-serif;font-size:1.5rem;color:var(--ouro);text-transform:uppercase}
+  .modal-img{width:100%;border-radius:10px;display:block;max-height:80vh;object-fit:contain}
+  .modal-acoes{display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap}
 {% endblock %}
 {% block conteudo %}
 <div class="painel-topo">
@@ -633,7 +643,23 @@ TEMPLATES = {
   </form>
   {% if figurinhas %}
   <button id="btnTime" class="btn btn-ouro" onclick="baixarTime()">⬇️ Baixar time da turma</button>
+  <button id="btnPreview" class="btn btn-fantasma" onclick="visualizarTime()">👁️ Pré-visualizar</button>
   {% endif %}
+</div>
+
+<!-- Modal de pré-visualização -->
+<div id="previewModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-topo">
+      <h3>Pré-visualização do time</h3>
+      <button class="btn btn-fantasma" onclick="fecharPreview()" style="padding:8px 16px">✕ Fechar</button>
+    </div>
+    <img id="previewImg" class="modal-img" src="" alt="Prévia do time">
+    <div class="modal-acoes">
+      <button class="btn btn-ouro" onclick="_baixarPreview()">⬇️ Baixar imagem</button>
+      <button class="btn btn-fantasma" onclick="fecharPreview()">✕ Fechar</button>
+    </div>
+  </div>
 </div>
 
 {% if figurinhas %}
@@ -778,114 +804,163 @@ TEMPLATES = {
     }finally{setTimeout(function(){btn.disabled=false;btn.textContent=t;},500);}
   }
 
-  async function baixarTime(){
+  // ── Geração do canvas do time (compartilhada entre download e pré-visualização) ──
+  async function _gerarCanvas(){
     var blocos=[].slice.call(document.querySelectorAll('.card-bloco'));
-    if(!blocos.length){alert('Não há figurinhas para gerar o time.');return;}
-    var btn=document.getElementById('btnTime');var t=btn.textContent;btn.disabled=true;btn.textContent='Gerando imagem...';
-    try{
-      await document.fonts.ready;
-      var dados=await Promise.all(blocos.map(async function(b){
-        var img=await carregarImagem(b.querySelector('.fig-foto img').src).catch(function(){return null;});
-        return {nome:b.dataset.nome,turma:b.dataset.turma,posicao:b.dataset.posicao,img:img};
-      }));
-      var sel=document.getElementById('filtroTurma');
-      var turmaLabel=(sel&&sel.value)?sel.value:'';
-      if(!turmaLabel){var ts=dados.map(function(d){return d.turma;}).filter(function(v,i,a){return a.indexOf(v)===i;});turmaLabel=ts.length===1?ts[0]:'Seleção da escola';}
+    if(!blocos.length){alert('Não há figurinhas para gerar o time.');return null;}
+    await document.fonts.ready;
+    var dados=await Promise.all(blocos.map(async function(b){
+      var img=await carregarImagem(b.querySelector('.fig-foto img').src).catch(function(){return null;});
+      return {nome:b.dataset.nome,turma:b.dataset.turma,posicao:b.dataset.posicao,img:img};
+    }));
+    var sel=document.getElementById('filtroTurma');
+    var turmaLabel=(sel&&sel.value)?sel.value:'';
+    if(!turmaLabel){var ts=dados.map(function(d){return d.turma;}).filter(function(v,i,a){return a.indexOf(v)===i;});turmaLabel=ts.length===1?ts[0]:'Seleção da escola';}
 
-      var comPos=['Técnico','Auxiliar','Árbitra'];
-      var comissao=dados.filter(function(d){return comPos.indexOf(d.posicao)>=0;});
-      var jogadores=dados.filter(function(d){return comPos.indexOf(d.posicao)<0;});
+    var comPos=['Técnico','Auxiliar','Árbitra'];
+    var comissao=dados.filter(function(d){return comPos.indexOf(d.posicao)>=0;});
+    var jogadores=dados.filter(function(d){return comPos.indexOf(d.posicao)<0;});
 
-      // Grupos de jogadores: ataque → meio → defesa → goleiro
-      var grupos=[
-        jogadores.filter(function(d){return d.posicao==='Atacante';}),
-        jogadores.filter(function(d){return d.posicao==='Volante'||d.posicao==='Meio de campo';}),
-        jogadores.filter(function(d){return d.posicao==='Zagueiro'||d.posicao==='Lateral';}),
-        jogadores.filter(function(d){return d.posicao==='Goleiro';})
-      ].filter(function(g){return g.length>0;});
+    // Mantém todos os 4 slots táticos (com arrays vazios) para posicionamento correto no campo
+    var allGrupos=[
+      jogadores.filter(function(d){return d.posicao==='Atacante';}),
+      jogadores.filter(function(d){return d.posicao==='Volante'||d.posicao==='Meio de campo';}),
+      jogadores.filter(function(d){return d.posicao==='Zagueiro'||d.posicao==='Lateral';}),
+      jogadores.filter(function(d){return d.posicao==='Goleiro';})
+    ];
+    // Centro de cada zona como fração da altura do campo (ataque=topo, goleiro=fundo)
+    var FRAC=[0.13,0.38,0.63,0.87];
 
-      var FW=1800, sideM=40, gap=10, rowGap=22;
-      var MAX_PER_ROW=11;
+    var FW=1800, gap=10, rowGap=22, sideM=40;
+    var MAX_PER_ROW=11;
 
-      // Tamanho das figurinhas: tamanho normal fixo, só encolhe se não couber
-      var maxGrupo=Math.max.apply(null,[1].concat(grupos.map(function(g){return Math.min(g.length,MAX_PER_ROW);})));
-      var PREF_CARD_W=200, MIN_CARD_W=100, availW=FW-2*sideM;
-      var cardW=(PREF_CARD_W*maxGrupo+gap*(maxGrupo-1)<=availW)
-        ? PREF_CARD_W
-        : Math.max(MIN_CARD_W,Math.floor((availW-gap*(maxGrupo-1))/maxGrupo));
-      var cardH=Math.round(cardW*88/63);
+    function chunkN(arr,n){var o=[];for(var i=0;i<arr.length;i+=n)o.push(arr.slice(i,i+n));return o;}
 
-      function chunkN(arr,n){var o=[];for(var i=0;i<arr.length;i+=n)o.push(arr.slice(i,i+n));return o;}
+    // Tamanho normal das figurinhas, só encolhe se a linha mais cheia não couber
+    var maxGrupo=Math.max.apply(null,[1].concat(allGrupos.map(function(g){return Math.min(g.length,MAX_PER_ROW);})));
+    var PREF_CARD_W=200,MIN_CARD_W=100,availW=FW-2*sideM;
+    var cardW=(PREF_CARD_W*maxGrupo+gap*(maxGrupo-1)<=availW)?PREF_CARD_W:Math.max(MIN_CARD_W,Math.floor((availW-gap*(maxGrupo-1))/maxGrupo));
+    var cardH=Math.round(cardW*88/63);
 
-      // Comissão técnica: tamanho fixo, seção própria acima do campo
-      var maxComRow=Math.min(comissao.length||1,6);
-      var comCardW=Math.min(200,Math.max(140,Math.floor((FW-2*sideM-gap*(maxComRow-1))/maxComRow)));
-      var comCardH=Math.round(comCardW*88/63);
-      var COM_LABEL=50;
-      var comRows=comissao.length?chunkN(comissao,maxComRow):[];
-      var comSecH=comissao.length?(COM_LABEL+comRows.length*(comCardH+rowGap)+rowGap):0;
+    // Comissão técnica: tamanho fixo, seção própria acima do campo
+    var maxComRow=Math.min(comissao.length||1,6);
+    var comCardW=Math.min(200,Math.max(140,Math.floor((FW-2*sideM-gap*(maxComRow-1))/maxComRow)));
+    var comCardH=Math.round(comCardW*88/63);
+    var COM_LABEL=50;
+    var comRows=comissao.length?chunkN(comissao,maxComRow):[];
+    var comSecH=comissao.length?(COM_LABEL+comRows.length*(comCardH+rowGap)+rowGap):0;
 
-      // Linhas de jogadores no campo
-      var playerRows=[];
-      grupos.forEach(function(g){chunkN(g,MAX_PER_ROW).forEach(function(r){playerRows.push(r);});});
-      // Campo: tamanho mínimo fixo (campo normal), expande se precisar acomodar mais jogadores
-      var MIN_FIELD_H=Math.round(FW*0.55); // proporção de campo real (~1800×990)
-      var neededFieldH=rowGap+playerRows.length*(cardH+rowGap);
-      var fieldH=Math.max(MIN_FIELD_H, neededFieldH);
+    // Altura do campo: mínimo proporcional ao campo real, expande se os grupos precisarem
+    var MIN_FIELD_H=Math.round(FW*0.62); // ~1116px — aspecto ~1.61:1, próximo ao campo real
+    var fieldH=MIN_FIELD_H;
+    allGrupos.forEach(function(g,gi){
+      if(!g.length)return;
+      var nRows=Math.ceil(g.length/MAX_PER_ROW);
+      var groupH=nRows*cardH+(nRows-1)*rowGap;
+      var frac=FRAC[gi];
+      // O grupo fica centralizado em frac*fieldH; garante que não saia pelo topo nem pelo fundo
+      var needed=Math.ceil(Math.max(
+        frac>0.01?(groupH/2+rowGap*2)/frac:0,
+        (groupH/2+rowGap*2)/Math.max(0.01,1-frac)
+      ));
+      fieldH=Math.max(fieldH,needed);
+    });
 
-      var HH=180;
-      var H=HH+comSecH+fieldH+30;
-      var scale=1.6;
-      var cv=document.createElement('canvas');cv.width=Math.round(FW*scale);cv.height=Math.round(H*scale);
-      var ctx=cv.getContext('2d');ctx.scale(scale,scale);
+    var HH=180;
+    var H=HH+comSecH+fieldH+30;
+    var scale=1.6;
+    var cv=document.createElement('canvas');cv.width=Math.round(FW*scale);cv.height=Math.round(H*scale);
+    var ctx=cv.getContext('2d');ctx.scale(scale,scale);
 
-      // Campo (área dos jogadores)
-      var fieldTop=HH+comSecH;
-      desenharCampo(ctx,0,fieldTop,FW,fieldH+30);
+    var fieldTop=HH+comSecH;
+    desenharCampo(ctx,0,fieldTop,FW,fieldH+30);
 
-      // Header
-      ctx.fillStyle='#06281a';ctx.fillRect(0,0,FW,HH);
-      ctx.fillStyle='#f4c542';ctx.fillRect(0,HH-5,FW,5);
-      var logoEl=document.querySelector('.logo-badge img');var lx=50;
-      if(logoEl){var lg=await carregarImagem(logoEl.src).catch(function(){return null;});
-        if(lg){var bs=HH*0.62,bx=50,by=(HH-bs)/2,ipd=bs*0.1;
-          ctx.fillStyle='#fff';rrect(ctx,bx,by,bs,bs,bs*0.16);ctx.fill();
-          var ar=lg.width/lg.height,dw=bs-2*ipd,dh=dw/ar;if(dh>bs-2*ipd){dh=bs-2*ipd;dw=dh*ar;}
-          ctx.drawImage(lg,bx+(bs-dw)/2,by+(bs-dh)/2,dw,dh);lx=bx+bs+28;}
-      }
-      ctx.textBaseline='middle';ctx.textAlign='left';
-      ctx.fillStyle='#fff';ctx.font='36px Anton';ctx.fillText('TIME DA TURMA',lx,HH*0.36);
-      ctx.fillStyle='#f4c542';ctx.font='54px Anton';ctx.fillText(turmaLabel.toUpperCase(),lx,HH*0.66);
-      ctx.fillStyle='#c3d6c9';ctx.textAlign='right';ctx.font='22px Sora';
-      ctx.fillText(jogadores.length+' jogadores • Copa CESANAM',FW-50,HH*0.32);
-      ctx.fillText('Colégio Estadual Ana Nastre de Melo',FW-50,HH*0.64);
+    // Header
+    ctx.fillStyle='#06281a';ctx.fillRect(0,0,FW,HH);
+    ctx.fillStyle='#f4c542';ctx.fillRect(0,HH-5,FW,5);
+    var logoEl=document.querySelector('.logo-badge img');var lx=50;
+    if(logoEl){var lg=await carregarImagem(logoEl.src).catch(function(){return null;});
+      if(lg){var bs=HH*0.62,bx=50,by=(HH-bs)/2,ipd=bs*0.1;
+        ctx.fillStyle='#fff';rrect(ctx,bx,by,bs,bs,bs*0.16);ctx.fill();
+        var ar=lg.width/lg.height,dw=bs-2*ipd,dh=dw/ar;if(dh>bs-2*ipd){dh=bs-2*ipd;dw=dh*ar;}
+        ctx.drawImage(lg,bx+(bs-dw)/2,by+(bs-dh)/2,dw,dh);lx=bx+bs+28;}
+    }
+    ctx.textBaseline='middle';ctx.textAlign='left';
+    ctx.fillStyle='#fff';ctx.font='36px Anton';ctx.fillText('TIME DA TURMA',lx,HH*0.36);
+    ctx.fillStyle='#f4c542';ctx.font='54px Anton';ctx.fillText(turmaLabel.toUpperCase(),lx,HH*0.66);
+    ctx.fillStyle='#c3d6c9';ctx.textAlign='right';ctx.font='22px Sora';
+    ctx.fillText(jogadores.length+' jogadores • Copa CESANAM',FW-50,HH*0.32);
+    ctx.fillText('Colégio Estadual Ana Nastre de Melo',FW-50,HH*0.64);
 
-      // Seção comissão técnica (posições FIXAS, fundo distinto acima do campo)
-      if(comissao.length){
-        ctx.fillStyle='rgba(6,22,14,.96)';ctx.fillRect(0,HH,FW,comSecH);
-        ctx.fillStyle='rgba(244,197,66,.18)';ctx.fillRect(0,HH,FW,COM_LABEL);
-        ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffd866';ctx.font='28px Anton';
-        ctx.fillText('— COMISSÃO TÉCNICA —',FW/2,HH+COM_LABEL/2);
-        var cy=HH+COM_LABEL+rowGap;
-        comRows.forEach(function(row){
-          var tw=row.length*comCardW+(row.length-1)*gap;
-          var cx=(FW-tw)/2;
-          row.forEach(function(d,k){desenharCartao(ctx,cx+k*(comCardW+gap),cy,comCardW,comCardH,d,d.img);});
-          cy+=comCardH+rowGap;
-        });
-      }
-
-      // Jogadores no campo, por linha de posição
-      var y=fieldTop+rowGap;
-      playerRows.forEach(function(row){
-        var n=row.length,tw=n*cardW+(n-1)*gap,sx=(FW-tw)/2;
-        row.forEach(function(d,k){desenharCartao(ctx,sx+k*(cardW+gap),y,cardW,cardH,d,d.img);});
-        y+=cardH+rowGap;
+    // Seção comissão técnica (fundo distinto, fixada acima do campo)
+    if(comissao.length){
+      ctx.fillStyle='rgba(6,22,14,.96)';ctx.fillRect(0,HH,FW,comSecH);
+      ctx.fillStyle='rgba(244,197,66,.18)';ctx.fillRect(0,HH,FW,COM_LABEL);
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffd866';ctx.font='28px Anton';
+      ctx.fillText('— COMISSÃO TÉCNICA —',FW/2,HH+COM_LABEL/2);
+      var cy=HH+COM_LABEL+rowGap;
+      comRows.forEach(function(row){
+        var tw=row.length*comCardW+(row.length-1)*gap,cx=(FW-tw)/2;
+        row.forEach(function(d,k){desenharCartao(ctx,cx+k*(comCardW+gap),cy,comCardW,comCardH,d,d.img);});
+        cy+=comCardH+rowGap;
       });
+    }
 
-      cv.toBlob(function(blob){baixarBlob(blob,'Time_'+slug(turmaLabel)+'.png');},'image/png');
+    // Jogadores nas zonas táticas: cada grupo centralizado na sua fração do campo
+    allGrupos.forEach(function(g,gi){
+      if(!g.length)return;
+      var rows=chunkN(g,MAX_PER_ROW);
+      var groupH=rows.length*cardH+(rows.length-1)*rowGap;
+      var centerY=fieldTop+FRAC[gi]*fieldH;
+      var startY=Math.round(centerY-groupH/2);
+      rows.forEach(function(row,ri){
+        var n=row.length,tw=n*cardW+(n-1)*gap,sx=(FW-tw)/2;
+        row.forEach(function(d,k){desenharCartao(ctx,sx+k*(cardW+gap),startY+ri*(cardH+rowGap),cardW,cardH,d,d.img);});
+      });
+    });
+
+    return {cv:cv,label:turmaLabel};
+  }
+
+  // ── Download direto ──
+  async function baixarTime(){
+    var btn=document.getElementById('btnTime');var t=btn.textContent;
+    btn.disabled=true;btn.textContent='Gerando...';
+    try{
+      var res=await _gerarCanvas();
+      if(!res)return;
+      res.cv.toBlob(function(blob){baixarBlob(blob,'Time_'+slug(res.label)+'.png');},'image/png');
     }catch(e){alert('Não consegui gerar a imagem do time: '+e);}
     finally{setTimeout(function(){btn.disabled=false;btn.textContent=t;},600);}
+  }
+
+  // ── Pré-visualização ──
+  var _previewBlob=null,_previewLabel='';
+  async function visualizarTime(){
+    var btn=document.getElementById('btnPreview');var t=btn.textContent;
+    btn.disabled=true;btn.textContent='Gerando...';
+    try{
+      var res=await _gerarCanvas();
+      if(!res)return;
+      res.cv.toBlob(function(blob){
+        _previewBlob=blob;_previewLabel=res.label;
+        var url=URL.createObjectURL(blob);
+        var img=document.getElementById('previewImg');
+        img.src=url;
+        document.getElementById('previewModal').classList.add('aberto');
+      },'image/png');
+    }catch(e){alert('Não consegui gerar a prévia: '+e);}
+    finally{setTimeout(function(){btn.disabled=false;btn.textContent=t;},600);}
+  }
+  function fecharPreview(){
+    var img=document.getElementById('previewImg');
+    if(img.src.startsWith('blob:'))URL.revokeObjectURL(img.src);
+    img.src='';
+    _previewBlob=null;
+    document.getElementById('previewModal').classList.remove('aberto');
+  }
+  function _baixarPreview(){
+    if(_previewBlob)baixarBlob(_previewBlob,'Time_'+slug(_previewLabel)+'.png');
   }
 
 </script>
