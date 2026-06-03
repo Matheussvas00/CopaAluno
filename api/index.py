@@ -279,7 +279,6 @@ TEMPLATES = {
       <select id="turma" name="turma" required>
         <option value="" disabled selected>Selecione...</option>
         {% for t in turmas %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-        <option value="{{ turma_comissao }}">{{ turma_comissao }} (comissão)</option>
       </select>
     </div>
 
@@ -308,7 +307,7 @@ TEMPLATES = {
     <div class="campo" id="campoSenha">
       <label for="senha_staff">Senha do professor</label>
       <input type="password" id="senha_staff" name="senha_staff" placeholder="Digite a senha para cadastrar a comissão">
-      <div class="aviso-staff">As posições de Técnico, Auxiliar e Árbitra são protegidas por senha. Para a Árbitra (diretora), você pode escolher a turma <b>"{{ turma_comissao }}"</b> para que ela apareça em todos os times.</div>
+      <div class="aviso-staff">As posições de Técnico, Auxiliar e Árbitra são protegidas por senha do professor.</div>
     </div>
 
     <div class="campo">
@@ -409,20 +408,127 @@ TEMPLATES = {
     'sucesso.html': r'''{% extends "base.html" %}
 {% block titulo %}Figurinha salva!{% endblock %}
 {% block estilo %}
-  .ok-box{max-width:560px;margin:40px auto;text-align:center;
-    background:rgba(255,255,255,.04);border:1px solid rgba(244,197,66,.25);border-radius:20px;padding:48px 32px}
-  .ok-box .estrela{font-size:3.4rem}
-  .ok-box h2{font-family:'Anton',sans-serif;font-size:2.2rem;text-transform:uppercase;margin-top:8px}
-  .ok-box h2 b{color:var(--ouro)}
-  .ok-box p{color:var(--cinza);margin:14px 0 28px;line-height:1.5}
+  .ok-wrap{max-width:480px;margin:32px auto;text-align:center}
+  .ok-topo{background:rgba(255,255,255,.04);border:1px solid rgba(244,197,66,.25);border-radius:20px;padding:32px 32px 24px}
+  .ok-topo .estrela{font-size:3rem}
+  .ok-topo h2{font-family:'Anton',sans-serif;font-size:2rem;text-transform:uppercase;margin-top:6px}
+  .ok-topo h2 b{color:var(--ouro)}
+  .ok-topo p{color:var(--cinza);margin:10px 0 0;line-height:1.5;font-size:.93rem}
+  .fig-preview{margin:20px auto 0;display:flex;justify-content:center}
+  .acoes-ok{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:20px}
+  .figurinha{--cor:#888;width:240px;aspect-ratio:63/88;border-radius:16px;position:relative;overflow:hidden;
+    background:linear-gradient(160deg,#10261b,#081912);padding:6px;
+    box-shadow:0 20px 50px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06) inset}
+  .figurinha::before{content:"";position:absolute;inset:0;border-radius:16px;padding:2.5px;
+    background:linear-gradient(135deg,var(--cor),#fff6,var(--cor));
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+  .fig-inner{height:100%;border-radius:11px;overflow:hidden;display:flex;flex-direction:column;background:#06140d;position:relative}
+  .fig-faixa{flex-shrink:0;background:linear-gradient(180deg,var(--cor),color-mix(in srgb,var(--cor) 60%,#000));
+    color:#fff;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;
+    font-weight:700;text-transform:uppercase;letter-spacing:1px;font-size:.8rem}
+  .fig-faixa .ic{font-size:1rem}
+  .fig-foto{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;
+    background:repeating-linear-gradient(45deg,#0c1f15 0 12px,#0a1b12 12px 24px)}
+  .fig-foto img{width:100%;height:100%;object-fit:contain}
+  .fig-rodape{flex-shrink:0;padding:9px 12px 11px;background:linear-gradient(0deg,#05110b,transparent)}
+  .fig-rodape .nome{font-family:'Anton',sans-serif;font-size:1.15rem;text-transform:uppercase;line-height:1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fig-rodape .meta{display:flex;justify-content:space-between;align-items:center;margin-top:5px}
+  .fig-rodape .turma{color:var(--cinza);font-size:.72rem;font-weight:600}
+  .fig-selo{font-family:'Anton',sans-serif;font-size:.65rem;color:var(--ouro);border:1px solid var(--ouro);padding:2px 6px;border-radius:5px}
+  .fig-inner::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.14) 48%,transparent 60%);
+    background-size:250% 250%;animation:brilho 5s linear infinite}
+  @keyframes brilho{0%{background-position:140% 0}100%{background-position:-40% 0}}
 {% endblock %}
 {% block conteudo %}
-<div class="ok-box">
-  <div class="estrela">🌟</div>
-  <h2>Boa, <b>{{ nome.split(' ')[0] }}</b>!</h2>
-  <p>Sua figurinha entrou no álbum da turma. Quer fazer outra ou já era?</p>
-  <a href="{{ url_for('index') }}" class="btn btn-ouro">➕ Criar outra figurinha</a>
+{% set cores = {'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4','Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626','Técnico':'#475569','Auxiliar':'#0d9488','Árbitra':'#d4a017'} %}
+{% set icones = {'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥','Técnico':'📋','Auxiliar':'📣','Árbitra':'🟨'} %}
+<div class="ok-wrap">
+  <div class="ok-topo">
+    <div class="estrela">🌟</div>
+    <h2>Boa, <b>{{ nome.split(' ')[0] }}</b>!</h2>
+    <p>Sua figurinha entrou no álbum da turma!</p>
+  </div>
+
+  <div class="fig-preview">
+    <div class="figurinha" style="--cor:{{ cores.get(posicao,'#888') }}">
+      <div class="fig-inner">
+        <div class="fig-faixa"><span>{{ posicao }}</span><span class="ic">{{ icones.get(posicao,'⚽') }}</span></div>
+        <div class="fig-foto"><img id="fImg" src="{{ imagem }}" alt="{{ nome }}"></div>
+        <div class="fig-rodape">
+          <div class="nome">{{ nome|upper }}</div>
+          <div class="meta"><span class="turma">{{ turma }}</span><span class="fig-selo">COPA 26</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="acoes-ok">
+    <button class="btn btn-ouro" id="btnDl" onclick="baixarFigurinha()">⬇️ Baixar minha figurinha</button>
+    <a href="{{ url_for('index') }}" class="btn btn-fantasma">➕ Criar outra</a>
+  </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  var _dados={nome:{{ nome|tojson }},turma:{{ turma|tojson }},posicao:{{ posicao|tojson }}};
+  var CORES={'Goleiro':'#f59e0b','Zagueiro':'#2563eb','Lateral':'#06b6d4','Volante':'#8b5cf6','Meio de campo':'#16a34a','Atacante':'#dc2626','Técnico':'#475569','Auxiliar':'#0d9488','Árbitra':'#d4a017'};
+  var ICONES={'Goleiro':'🧤','Zagueiro':'🛡️','Lateral':'🏃','Volante':'⚙️','Meio de campo':'🎯','Atacante':'🔥','Técnico':'📋','Auxiliar':'📣','Árbitra':'🟨'};
+  function hexRgb(h){h=h.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+  function mistura(a,b,t){var A=hexRgb(a),B=hexRgb(b);return 'rgb('+A.map(function(v,i){return Math.round(v+(B[i]-v)*t);}).join(',')+')';}
+  function rrect(ctx,x,y,w,h,r){if(ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,w,h,r);return;}ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+  function fitFont(ctx,text,fam,maxW,start,min){var px=start;ctx.font=px+'px '+fam;while(ctx.measureText(text).width>maxW&&px>min){px-=2;ctx.font=px+'px '+fam;}return px;}
+  function contain(ctx,img,x,y,w,h){var ar=img.width/img.height,tr=w/h,dw,dh;if(ar>tr){dw=w;dh=w/ar;}else{dh=h;dw=h*ar;}ctx.drawImage(img,0,0,img.width,img.height,x+(w-dw)/2,y+(h-dh)/2,dw,dh);}
+  function desenharCartao(ctx,x,y,w,h,d,img){
+    var cor=CORES[d.posicao]||'#888';
+    var r=w*0.06,pad=w*0.028,ir=r*0.7;
+    rrect(ctx,x,y,w,h,r);
+    var g=ctx.createLinearGradient(x,y,x+w,y+h);g.addColorStop(0,'#10261b');g.addColorStop(1,'#06140d');ctx.fillStyle=g;ctx.fill();
+    var bw=w*0.02,bg=ctx.createLinearGradient(x,y,x+w,y+h);bg.addColorStop(0,cor);bg.addColorStop(.5,'#ffffff');bg.addColorStop(1,cor);
+    ctx.lineWidth=bw;ctx.strokeStyle=bg;rrect(ctx,x+bw/2,y+bw/2,w-bw,h-bw,r);ctx.stroke();
+    var ix=x+pad,iy=y+pad,iw=w-2*pad,ih=h-2*pad;
+    ctx.save();rrect(ctx,ix,iy,iw,ih,ir);ctx.clip();ctx.fillStyle='#06140d';ctx.fillRect(ix,iy,iw,ih);
+    var bandH=ih*0.092,b3=ctx.createLinearGradient(0,iy,0,iy+bandH);b3.addColorStop(0,cor);b3.addColorStop(1,mistura(cor,'#000000',.45));
+    ctx.fillStyle=b3;ctx.fillRect(ix,iy,iw,bandH);
+    ctx.fillStyle='#fff';ctx.textBaseline='middle';ctx.textAlign='left';
+    var fp=fitFont(ctx,d.posicao.toUpperCase(),'Anton',iw*0.72,bandH*0.55,9);
+    ctx.font=fp+'px Anton';ctx.fillText(d.posicao.toUpperCase(),ix+iw*0.05,iy+bandH*0.55);
+    ctx.textAlign='right';ctx.font=(bandH*0.55)+'px Sora';ctx.fillText(ICONES[d.posicao]||'⚽',ix+iw*0.95,iy+bandH*0.52);
+    var fy=iy+bandH,fH=ih*0.69,fgr=ctx.createLinearGradient(0,fy,0,fy+fH);fgr.addColorStop(0,'#0c1f15');fgr.addColorStop(1,'#0a1b12');
+    ctx.fillStyle=fgr;ctx.fillRect(ix,fy,iw,fH);
+    if(img){ctx.save();ctx.beginPath();ctx.rect(ix,fy,iw,fH);ctx.clip();contain(ctx,img,ix,fy,iw,fH);ctx.restore();}
+    var ry=fy+fH,rH=ih-(bandH+fH),gr=ctx.createLinearGradient(0,ry,0,ry+rH);gr.addColorStop(0,'rgba(5,17,11,.15)');gr.addColorStop(.45,'#05110b');gr.addColorStop(1,'#05110b');
+    ctx.fillStyle=gr;ctx.fillRect(ix,ry,iw,rH);
+    ctx.textBaseline='alphabetic';ctx.textAlign='left';ctx.fillStyle='#fff';
+    var np=fitFont(ctx,d.nome.toUpperCase(),'Anton',iw*0.9,rH*0.40,9);
+    ctx.font=np+'px Anton';ctx.fillText(d.nome.toUpperCase(),ix+iw*0.05,ry+rH*0.48);
+    ctx.font=(rH*0.17)+'px Sora';ctx.fillStyle='#c3d6c9';ctx.fillText(d.turma,ix+iw*0.05,ry+rH*0.80);
+    var slo='COPA 26',sw2=ctx.measureText(slo).width,padx=iw*0.035,sh=rH*0.27,sx=ix+iw*0.95-sw2-2*padx,sy=ry+rH*0.60;
+    ctx.lineWidth=Math.max(1,w*0.004);ctx.strokeStyle='#f4c542';rrect(ctx,sx,sy,sw2+2*padx,sh,sh*0.3);ctx.stroke();
+    ctx.fillStyle='#f4c542';ctx.textBaseline='middle';ctx.fillText(slo,sx+padx,sy+sh*0.55);
+    ctx.restore();
+  }
+  async function baixarFigurinha(){
+    var btn=document.getElementById('btnDl');btn.disabled=true;btn.textContent='Gerando...';
+    try{
+      await document.fonts.ready;
+      var fImg=document.getElementById('fImg');
+      var img=await new Promise(function(res,rej){var i=new Image();i.onload=function(){res(i);};i.onerror=rej;i.crossOrigin='anonymous';i.src=fImg.src;});
+      var scale=2.4,W=440,H=Math.round(W*88/63);
+      var cv=document.createElement('canvas');cv.width=W*scale;cv.height=H*scale;
+      var ctx=cv.getContext('2d');ctx.scale(scale,scale);
+      desenharCartao(ctx,3,3,W-6,H-6,_dados,img);
+      cv.toBlob(function(blob){
+        var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+        a.download='Figurinha_'+(_dados.nome||'').replace(/[^a-zA-Z0-9]/g,'_')+'.png';
+        document.body.appendChild(a);a.click();a.remove();
+        setTimeout(function(){URL.revokeObjectURL(a.href);},1500);
+      },'image/png');
+    }finally{setTimeout(function(){btn.disabled=false;btn.textContent='⬇️ Baixar minha figurinha';},500);}
+  }
+</script>
 {% endblock %}
 ''',
     'login.html': r'''{% extends "base.html" %}
@@ -688,35 +794,50 @@ TEMPLATES = {
 
       var comPos=['Técnico','Auxiliar','Árbitra'];
       var comissao=dados.filter(function(d){return comPos.indexOf(d.posicao)>=0;});
-      var linhasJog=[
-        dados.filter(function(d){return d.posicao==='Atacante';}),
-        dados.filter(function(d){return d.posicao==='Volante'||d.posicao==='Meio de campo';}),
-        dados.filter(function(d){return d.posicao==='Zagueiro'||d.posicao==='Lateral';}),
-        dados.filter(function(d){return d.posicao==='Goleiro';})
-      ];
+      var jogadores=dados.filter(function(d){return comPos.indexOf(d.posicao)<0;});
 
-      var FW=1700, sideM=50, gap=16, rowGap=26;
-      var maxLine=Math.max(1,linhasJog[0].length,linhasJog[1].length,linhasJog[2].length,linhasJog[3].length,comissao.length);
-      var idealW=(FW-2*sideM-gap*(maxLine-1))/maxLine;
-      var cardW=Math.min(230,Math.max(120,idealW));
-      var cardH=cardW*88/63;
-      var perRow=Math.max(1,Math.floor((FW-2*sideM+gap)/(cardW+gap)));
+      // Grupos de jogadores: ataque → meio → defesa → goleiro
+      var grupos=[
+        jogadores.filter(function(d){return d.posicao==='Atacante';}),
+        jogadores.filter(function(d){return d.posicao==='Volante'||d.posicao==='Meio de campo';}),
+        jogadores.filter(function(d){return d.posicao==='Zagueiro'||d.posicao==='Lateral';}),
+        jogadores.filter(function(d){return d.posicao==='Goleiro';})
+      ].filter(function(g){return g.length>0;});
 
-      function chunk(arr){var o=[];for(var i=0;i<arr.length;i+=perRow)o.push(arr.slice(i,i+perRow));return o;}
-      var fileiras=[];
-      chunk(comissao).forEach(function(r){fileiras.push(r);});
-      linhasJog.forEach(function(l){chunk(l).forEach(function(r){fileiras.push(r);});});
-      if(!fileiras.length){alert('Sem figurinhas para o time.');return;}
+      var FW=1800, sideM=40, gap=10, rowGap=22;
+      var MAX_PER_ROW=11;
 
-      var HH=180, labelH=comissao.length?48:0, fieldTop=HH;
-      var fieldH=rowGap+labelH+fileiras.length*(cardH+rowGap);
-      var H=HH+fieldH;
+      // Tamanho das figurinhas de jogadores adaptado ao grupo mais cheio
+      var maxGrupo=Math.max.apply(null,[1].concat(grupos.map(function(g){return Math.min(g.length,MAX_PER_ROW);})));
+      var cardW=Math.min(210,Math.max(100,Math.floor((FW-2*sideM-gap*(maxGrupo-1))/maxGrupo)));
+      var cardH=Math.round(cardW*88/63);
+
+      function chunkN(arr,n){var o=[];for(var i=0;i<arr.length;i+=n)o.push(arr.slice(i,i+n));return o;}
+
+      // Comissão técnica: tamanho fixo, seção própria acima do campo
+      var maxComRow=Math.min(comissao.length||1,6);
+      var comCardW=Math.min(200,Math.max(140,Math.floor((FW-2*sideM-gap*(maxComRow-1))/maxComRow)));
+      var comCardH=Math.round(comCardW*88/63);
+      var COM_LABEL=50;
+      var comRows=comissao.length?chunkN(comissao,maxComRow):[];
+      var comSecH=comissao.length?(COM_LABEL+comRows.length*(comCardH+rowGap)+rowGap):0;
+
+      // Linhas de jogadores no campo
+      var playerRows=[];
+      grupos.forEach(function(g){chunkN(g,MAX_PER_ROW).forEach(function(r){playerRows.push(r);});});
+      var fieldH=playerRows.length?(rowGap+playerRows.length*(cardH+rowGap)):80;
+
+      var HH=180;
+      var H=HH+comSecH+fieldH+30;
       var scale=1.6;
       var cv=document.createElement('canvas');cv.width=Math.round(FW*scale);cv.height=Math.round(H*scale);
       var ctx=cv.getContext('2d');ctx.scale(scale,scale);
 
-      desenharCampo(ctx,0,fieldTop,FW,fieldH);
-      // header
+      // Campo (área dos jogadores)
+      var fieldTop=HH+comSecH;
+      desenharCampo(ctx,0,fieldTop,FW,fieldH+30);
+
+      // Header
       ctx.fillStyle='#06281a';ctx.fillRect(0,0,FW,HH);
       ctx.fillStyle='#f4c542';ctx.fillRect(0,HH-5,FW,5);
       var logoEl=document.querySelector('.logo-badge img');var lx=50;
@@ -730,22 +851,32 @@ TEMPLATES = {
       ctx.fillStyle='#fff';ctx.font='36px Anton';ctx.fillText('TIME DA TURMA',lx,HH*0.36);
       ctx.fillStyle='#f4c542';ctx.font='54px Anton';ctx.fillText(turmaLabel.toUpperCase(),lx,HH*0.66);
       ctx.fillStyle='#c3d6c9';ctx.textAlign='right';ctx.font='22px Sora';
-      ctx.fillText(dados.length+' figurinhas • Copa CESANAM',FW-50,HH*0.32);
+      ctx.fillText(jogadores.length+' jogadores • Copa CESANAM',FW-50,HH*0.32);
       ctx.fillText('Colégio Estadual Ana Nastre de Melo',FW-50,HH*0.64);
 
-      var y=fieldTop+rowGap;
+      // Seção comissão técnica (posições FIXAS, fundo distinto acima do campo)
       if(comissao.length){
-        ctx.fillStyle='rgba(0,0,0,.32)';rrect(ctx,FW*0.32,y,FW*0.36,labelH*0.74,labelH*0.37);ctx.fill();
-        ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffd866';ctx.font='26px Anton';
-        ctx.fillText('COMISSÃO TÉCNICA',FW/2,y+labelH*0.37);
-        y+=labelH;
+        ctx.fillStyle='rgba(6,22,14,.96)';ctx.fillRect(0,HH,FW,comSecH);
+        ctx.fillStyle='rgba(244,197,66,.18)';ctx.fillRect(0,HH,FW,COM_LABEL);
+        ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#ffd866';ctx.font='28px Anton';
+        ctx.fillText('— COMISSÃO TÉCNICA —',FW/2,HH+COM_LABEL/2);
+        var cy=HH+COM_LABEL+rowGap;
+        comRows.forEach(function(row){
+          var tw=row.length*comCardW+(row.length-1)*gap;
+          var cx=(FW-tw)/2;
+          row.forEach(function(d,k){desenharCartao(ctx,cx+k*(comCardW+gap),cy,comCardW,comCardH,d,d.img);});
+          cy+=comCardH+rowGap;
+        });
       }
-      for(var fi=0;fi<fileiras.length;fi++){
-        var linha=fileiras[fi];var n=linha.length;
-        var totalW=n*cardW+(n-1)*gap;var startX=(FW-totalW)/2;
-        for(var k=0;k<n;k++){desenharCartao(ctx,startX+k*(cardW+gap),y,cardW,cardH,linha[k],linha[k].img);}
+
+      // Jogadores no campo, por linha de posição
+      var y=fieldTop+rowGap;
+      playerRows.forEach(function(row){
+        var n=row.length,tw=n*cardW+(n-1)*gap,sx=(FW-tw)/2;
+        row.forEach(function(d,k){desenharCartao(ctx,sx+k*(cardW+gap),y,cardW,cardH,d,d.img);});
         y+=cardH+rowGap;
-      }
+      });
+
       cv.toBlob(function(blob){baixarBlob(blob,'Time_'+slug(turmaLabel)+'.png');},'image/png');
     }catch(e){alert('Não consegui gerar a imagem do time: '+e);}
     finally{setTimeout(function(){btn.disabled=false;btn.textContent=t;},600);}
@@ -829,7 +960,7 @@ def salvar():
             )
     finally:
         conn.close()
-    return render_template("sucesso.html", nome=nome)
+    return render_template("sucesso.html", nome=nome, turma=turma, posicao=posicao, imagem=imagem)
 
 
 # --------------------- PROFESSOR ---------------------
