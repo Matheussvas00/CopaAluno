@@ -828,7 +828,10 @@ TEMPLATES = {
       // Linhas de jogadores no campo
       var playerRows=[];
       grupos.forEach(function(g){chunkN(g,MAX_PER_ROW).forEach(function(r){playerRows.push(r);});});
-      var fieldH=playerRows.length?(rowGap+playerRows.length*(cardH+rowGap)):80;
+      // Campo: tamanho mínimo fixo (campo normal), expande se precisar acomodar mais jogadores
+      var MIN_FIELD_H=Math.round(FW*0.55); // proporção de campo real (~1800×990)
+      var neededFieldH=rowGap+playerRows.length*(cardH+rowGap);
+      var fieldH=Math.max(MIN_FIELD_H, neededFieldH);
 
       var HH=180;
       var H=HH+comSecH+fieldH+30;
