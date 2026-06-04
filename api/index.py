@@ -28,7 +28,7 @@ POSICOES_COMISSAO = ["Técnico", "Auxiliar", "Árbitra"]
 POSICOES = POSICOES_JOGADORES + POSICOES_COMISSAO
 
 # Turmas disponiveis. "Todas as turmas" e so para a comissao (ex.: a diretora/arbitra).
-TURMAS = ["9º A", "9º B", "9º C", "1º D", "1º E", "2º D", "2º E", "2º F", "3º B", "3º C"]
+TURMAS = ["8º B", "9º A", "9º B", "9º C", "1º D", "1º E", "2º D", "2º E", "2º F", "3º B", "3º C"]
 TURMA_COMISSAO = "Todas as turmas"
 
 MAX_IMAGEM_BYTES = 3 * 1024 * 1024
